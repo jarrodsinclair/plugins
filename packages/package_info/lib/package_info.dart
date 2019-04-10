@@ -7,7 +7,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 
 const MethodChannel _kChannel =
-    const MethodChannel('plugins.flutter.io/package_info');
+    MethodChannel('plugins.flutter.io/package_info');
 
 /// Application metadata. Provides application bundle information on iOS and
 /// application package information on Android.
@@ -18,6 +18,7 @@ const MethodChannel _kChannel =
 /// ```
 class PackageInfo {
   PackageInfo({
+    this.appName,
     this.packageName,
     this.version,
     this.buildNumber,
@@ -29,12 +30,16 @@ class PackageInfo {
   /// The result is cached.
   static Future<PackageInfo> fromPlatform() async {
     if (_fromPlatform == null) {
-      final Completer<PackageInfo> completer = new Completer<PackageInfo>();
+      final Completer<PackageInfo> completer = Completer<PackageInfo>();
 
+      // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+      // https://github.com/flutter/flutter/issues/26431
+      // ignore: strong_mode_implicit_dynamic_method
       _kChannel.invokeMethod('getAll').then((dynamic result) {
-        final Map<String, String> map = result;
+        final Map<dynamic, dynamic> map = result;
 
-        completer.complete(new PackageInfo(
+        completer.complete(PackageInfo(
+          appName: map["appName"],
           packageName: map["packageName"],
           version: map["version"],
           buildNumber: map["buildNumber"],
@@ -45,6 +50,9 @@ class PackageInfo {
     }
     return _fromPlatform;
   }
+
+  /// The app name. `CFBundleDisplayName` on iOS, `application/label` on Android.
+  final String appName;
 
   /// The package name. `bundleIdentifier` on iOS, `getPackageName` on Android.
   final String packageName;

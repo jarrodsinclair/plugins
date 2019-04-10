@@ -17,5 +17,5 @@ A new flutter plugin project.
   s.dependency 'Flutter'
   s.dependency 'Firebase/Core'
   s.ios.deployment_target = '8.0'
+  s.static_framework = true
 end
-

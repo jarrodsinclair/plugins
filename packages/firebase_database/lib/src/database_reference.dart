@@ -20,8 +20,8 @@ class DatabaseReference extends Query {
   /// path. The relative path can either be a simple child key (e.g. ‘fred’) or
   /// a deeper slash-separated path (e.g. ‘fred/name/first’).
   DatabaseReference child(String path) {
-    return new DatabaseReference._(_database,
-        (new List<String>.from(_pathComponents)..addAll(path.split('/'))));
+    return DatabaseReference._(_database,
+        (List<String>.from(_pathComponents)..addAll(path.split('/'))));
   }
 
   /// Gets a DatabaseReference for the parent location. If this instance
@@ -31,13 +31,13 @@ class DatabaseReference extends Query {
     if (_pathComponents.isEmpty) {
       return null;
     }
-    return new DatabaseReference._(
-        _database, (new List<String>.from(_pathComponents)..removeLast()));
+    return DatabaseReference._(
+        _database, (List<String>.from(_pathComponents)..removeLast()));
   }
 
   /// Gets a FIRDatabaseReference for the root location.
   DatabaseReference root() {
-    return new DatabaseReference._(_database, <String>[]);
+    return DatabaseReference._(_database, <String>[]);
   }
 
   /// Gets the last token in a Firebase Database location (e.g. ‘fred’ in
@@ -53,9 +53,8 @@ class DatabaseReference extends Query {
   /// chronologically-sorted.
   DatabaseReference push() {
     final String key = PushIdGenerator.generatePushChildName();
-    final List<String> childPath = new List<String>.from(_pathComponents)
-      ..add(key);
-    return new DatabaseReference._(_database, childPath);
+    final List<String> childPath = List<String>.from(_pathComponents)..add(key);
+    return DatabaseReference._(_database, childPath);
   }
 
   /// Write `value` to the location with the specified `priority` if applicable.
@@ -70,7 +69,10 @@ class DatabaseReference extends Query {
   ///
   /// Passing null for the new value means all data at this location or any
   /// child location will be deleted.
-  Future<Null> set(dynamic value, {dynamic priority}) {
+  Future<void> set(dynamic value, {dynamic priority}) {
+    // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+    // https://github.com/flutter/flutter/issues/26431
+    // ignore: strong_mode_implicit_dynamic_method
     return _database._channel.invokeMethod(
       'DatabaseReference#set',
       <String, dynamic>{
@@ -84,7 +86,10 @@ class DatabaseReference extends Query {
   }
 
   /// Update the node with the `value`
-  Future<Null> update(Map<String, dynamic> value) {
+  Future<void> update(Map<String, dynamic> value) {
+    // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+    // https://github.com/flutter/flutter/issues/26431
+    // ignore: strong_mode_implicit_dynamic_method
     return _database._channel.invokeMethod(
       'DatabaseReference#update',
       <String, dynamic>{
@@ -120,7 +125,10 @@ class DatabaseReference extends Query {
   /// Note that priorities are parsed and ordered as IEEE 754 double-precision
   /// floating-point numbers. Keys are always stored as strings and are treated
   /// as numbers only when they can be parsed as a 32-bit integer.
-  Future<Null> setPriority(dynamic priority) async {
+  Future<void> setPriority(dynamic priority) async {
+    // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+    // https://github.com/flutter/flutter/issues/26431
+    // ignore: strong_mode_implicit_dynamic_method
     return _database._channel.invokeMethod(
       'DatabaseReference#setPriority',
       <String, dynamic>{
@@ -140,18 +148,18 @@ class DatabaseReference extends Query {
   /// Database servers will also be started.
   ///
   /// remove() is equivalent to calling set(null)
-  Future<Null> remove() => set(null);
+  Future<void> remove() => set(null);
 
   /// Performs an optimistic-concurrency transactional update to the data at
   /// this Firebase Database location.
   Future<TransactionResult> runTransaction(
       TransactionHandler transactionHandler,
-      {Duration timeout: const Duration(seconds: 5)}) async {
+      {Duration timeout = const Duration(seconds: 5)}) async {
     assert(timeout.inMilliseconds > 0,
         'Transaction timeout must be more than 0 milliseconds.');
 
     final Completer<TransactionResult> completer =
-        new Completer<TransactionResult>();
+        Completer<TransactionResult>();
 
     final int transactionKey = FirebaseDatabase._transactions.isEmpty
         ? 0
@@ -159,19 +167,22 @@ class DatabaseReference extends Query {
 
     FirebaseDatabase._transactions[transactionKey] = transactionHandler;
 
-    TransactionResult toTransactionResult(Map<String, dynamic> map) {
+    TransactionResult toTransactionResult(Map<dynamic, dynamic> map) {
       final DatabaseError databaseError =
-          map['error'] != null ? new DatabaseError._(map['error']) : null;
+          map['error'] != null ? DatabaseError._(map['error']) : null;
       final bool committed = map['committed'];
       final DataSnapshot dataSnapshot =
-          map['snapshot'] != null ? new DataSnapshot._(map['snapshot']) : null;
+          map['snapshot'] != null ? DataSnapshot._(map['snapshot']) : null;
 
       FirebaseDatabase._transactions.remove(transactionKey);
 
-      return new TransactionResult._(databaseError, committed, dataSnapshot);
+      return TransactionResult._(databaseError, committed, dataSnapshot);
     }
 
     _database._channel
+        // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+        // https://github.com/flutter/flutter/issues/26431
+        // ignore: strong_mode_implicit_dynamic_method
         .invokeMethod('DatabaseReference#runTransaction', <String, dynamic>{
       'app': _database.app?.name,
       'databaseURL': _database.databaseURL,
@@ -184,10 +195,14 @@ class DatabaseReference extends Query {
 
     return completer.future;
   }
+
+  OnDisconnect onDisconnect() {
+    return OnDisconnect._(_database, this);
+  }
 }
 
 class ServerValue {
-  static const Map<String, String> timestamp = const <String, String>{
+  static const Map<String, String> timestamp = <String, String>{
     '.sv': 'timestamp'
   };
 }

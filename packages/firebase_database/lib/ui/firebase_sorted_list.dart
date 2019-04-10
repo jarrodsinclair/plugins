@@ -4,7 +4,7 @@
 
 import 'dart:collection';
 
-import 'package:meta/meta.dart';
+import 'package:flutter/foundation.dart';
 
 import '../firebase_database.dart'
     show DatabaseError, DataSnapshot, Event, Query;
@@ -66,7 +66,7 @@ class FirebaseSortedList extends ListBase<DataSnapshot>
 
   @override
   set length(int value) {
-    throw new UnsupportedError("List cannot be modified.");
+    throw UnsupportedError("List cannot be modified.");
   }
 
   @override
@@ -74,7 +74,7 @@ class FirebaseSortedList extends ListBase<DataSnapshot>
 
   @override
   void operator []=(int index, DataSnapshot value) {
-    throw new UnsupportedError("List cannot be modified.");
+    throw UnsupportedError("List cannot be modified.");
   }
 
   @override
@@ -114,7 +114,8 @@ class FirebaseSortedList extends ListBase<DataSnapshot>
     onValue(event.snapshot);
   }
 
-  void _onError(DatabaseError error) {
+  void _onError(Object o) {
+    final DatabaseError error = o;
     onError?.call(error);
   }
 }

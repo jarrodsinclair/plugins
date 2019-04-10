@@ -6,43 +6,37 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_database/ui/firebase_animated_list.dart';
 
-final FirebaseApp app = new FirebaseApp(
-  name: 'db2',
-  options: Platform.isIOS
-      ? const FirebaseOptions(
-          googleAppID: '1:297855924061:ios:c6de2b69b03a5be8',
-          gcmSenderID: '297855924061',
-          databaseURL: 'https://flutterfire-cd2f7.firebaseio.com',
-        )
-      : const FirebaseOptions(
-          googleAppID: '1:297855924061:android:669871c998cc21bd',
-          apiKey: 'AIzaSyD_shO5mfO9lhy2TVWhfo1VUmARKlG4suk',
-          databaseURL: 'https://flutterfire-cd2f7.firebaseio.com',
-        ),
-);
-
-void main() {
-  runApp(new MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return new MaterialApp(
-      title: 'Flutter Database Example',
-      home: new MyHomePage(),
-    );
-  }
+Future<void> main() async {
+  final FirebaseApp app = await FirebaseApp.configure(
+    name: 'db2',
+    options: Platform.isIOS
+        ? const FirebaseOptions(
+            googleAppID: '1:297855924061:ios:c6de2b69b03a5be8',
+            gcmSenderID: '297855924061',
+            databaseURL: 'https://flutterfire-cd2f7.firebaseio.com',
+          )
+        : const FirebaseOptions(
+            googleAppID: '1:297855924061:android:669871c998cc21bd',
+            apiKey: 'AIzaSyD_shO5mfO9lhy2TVWhfo1VUmARKlG4suk',
+            databaseURL: 'https://flutterfire-cd2f7.firebaseio.com',
+          ),
+  );
+  runApp(MaterialApp(
+    title: 'Flutter Database Example',
+    home: MyHomePage(app: app),
+  ));
 }
 
 class MyHomePage extends StatefulWidget {
+  MyHomePage({this.app});
+  final FirebaseApp app;
+
   @override
-  _MyHomePageState createState() => new _MyHomePageState();
+  _MyHomePageState createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
@@ -60,11 +54,10 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    FirebaseApp.configure(name: app.name, options: app.options);
     // Demonstrates configuring to the database using a file
     _counterRef = FirebaseDatabase.instance.reference().child('counter');
     // Demonstrates configuring the database directly
-    final FirebaseDatabase database = new FirebaseDatabase(app: app);
+    final FirebaseDatabase database = FirebaseDatabase(app: widget.app);
     _messagesRef = database.reference().child('messages');
     database.reference().child('counter').once().then((DataSnapshot snapshot) {
       print('Connected to second database and read ${snapshot.value}');
@@ -77,7 +70,8 @@ class _MyHomePageState extends State<MyHomePage> {
         _error = null;
         _counter = event.snapshot.value ?? 0;
       });
-    }, onError: (DatabaseError error) {
+    }, onError: (Object o) {
+      final DatabaseError error = o;
       setState(() {
         _error = error;
       });
@@ -85,7 +79,8 @@ class _MyHomePageState extends State<MyHomePage> {
     _messagesSubscription =
         _messagesRef.limitToLast(10).onChildAdded.listen((Event event) {
       print('Child added: ${event.snapshot.value}');
-    }, onError: (DatabaseError error) {
+    }, onError: (Object o) {
+      final DatabaseError error = o;
       print('Error: ${error.code} ${error.message}');
     });
   }
@@ -97,8 +92,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _counterSubscription.cancel();
   }
 
-  Future<Null> _increment() async {
-    await FirebaseAuth.instance.signInAnonymously();
+  Future<void> _increment() async {
     // Increment counter in transaction.
     final TransactionResult transactionResult =
         await _counterRef.runTransaction((MutableData mutableData) async {
@@ -120,26 +114,26 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return new Scaffold(
-      appBar: new AppBar(
+    return Scaffold(
+      appBar: AppBar(
         title: const Text('Flutter Database Example'),
       ),
-      body: new Column(
+      body: Column(
         children: <Widget>[
-          new Flexible(
-            child: new Center(
+          Flexible(
+            child: Center(
               child: _error == null
-                  ? new Text(
-                      'Button tapped $_counter time${ _counter == 1 ? '' : 's' }.\n\n'
-                          'This includes all devices, ever.',
+                  ? Text(
+                      'Button tapped $_counter time${_counter == 1 ? '' : 's'}.\n\n'
+                      'This includes all devices, ever.',
                     )
-                  : new Text(
+                  : Text(
                       'Error retrieving button tap count:\n${_error.message}',
                     ),
             ),
           ),
-          new ListTile(
-            leading: new Checkbox(
+          ListTile(
+            leading: Checkbox(
               onChanged: (bool value) {
                 setState(() {
                   _anchorToBottom = value;
@@ -149,9 +143,9 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             title: const Text('Anchor to bottom'),
           ),
-          new Flexible(
-            child: new FirebaseAnimatedList(
-              key: new ValueKey<bool>(_anchorToBottom),
+          Flexible(
+            child: FirebaseAnimatedList(
+              key: ValueKey<bool>(_anchorToBottom),
               query: _messagesRef,
               reverse: _anchorToBottom,
               sort: _anchorToBottom
@@ -159,19 +153,19 @@ class _MyHomePageState extends State<MyHomePage> {
                   : null,
               itemBuilder: (BuildContext context, DataSnapshot snapshot,
                   Animation<double> animation, int index) {
-                return new SizeTransition(
+                return SizeTransition(
                   sizeFactor: animation,
-                  child: new Text("$index: ${snapshot.value.toString()}"),
+                  child: Text("$index: ${snapshot.value.toString()}"),
                 );
               },
             ),
           ),
         ],
       ),
-      floatingActionButton: new FloatingActionButton(
+      floatingActionButton: FloatingActionButton(
         onPressed: _increment,
         tooltip: 'Increment',
-        child: new Icon(Icons.add),
+        child: const Icon(Icons.add),
       ),
     );
   }

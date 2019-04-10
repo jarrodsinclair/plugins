@@ -37,11 +37,12 @@ public class QuickActionsPlugin implements MethodCallHandler {
     this.registrar = registrar;
   }
 
-  /** Plugin registration. */
+  /**
+   * Plugin registration.
+   *
+   * <p>Must be called when the application is created.
+   */
   public static void registerWith(Registrar registrar) {
-    if (channel != null) {
-      throw new IllegalStateException("You should not call registerWith more than once.");
-    }
     channel = new MethodChannel(registrar.messenger(), "plugins.flutter.io/quick_actions");
     channel.setMethodCallHandler(new QuickActionsPlugin(registrar));
   }
@@ -104,7 +105,7 @@ public class QuickActionsPlugin implements MethodCallHandler {
   /**
    * Handle the shortcut and immediately closes the activity.
    *
-   * <p>Needs to be invokable by Android system; hence it is public.
+   * <p>Needs to be invocable by Android system; hence it is public.
    */
   public static class ShortcutHandlerActivity extends Activity {
 
@@ -114,7 +115,9 @@ public class QuickActionsPlugin implements MethodCallHandler {
       // Get the Intent that started this activity and extract the string
       Intent intent = getIntent();
       String type = intent.getStringExtra("type");
-      channel.invokeMethod("launch", type);
+      if (channel != null) {
+        channel.invokeMethod("launch", type);
+      }
       finish();
     }
   }

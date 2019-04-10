@@ -4,7 +4,7 @@
 
 import 'dart:collection';
 
-import 'package:meta/meta.dart';
+import 'package:flutter/foundation.dart';
 
 import '../firebase_database.dart'
     show DatabaseError, DataSnapshot, Event, Query;
@@ -65,7 +65,7 @@ class FirebaseList extends ListBase<DataSnapshot>
 
   @override
   set length(int value) {
-    throw new UnsupportedError("List cannot be modified.");
+    throw UnsupportedError("List cannot be modified.");
   }
 
   @override
@@ -73,7 +73,7 @@ class FirebaseList extends ListBase<DataSnapshot>
 
   @override
   void operator []=(int index, DataSnapshot value) {
-    throw new UnsupportedError("List cannot be modified.");
+    throw UnsupportedError("List cannot be modified.");
   }
 
   @override
@@ -85,7 +85,6 @@ class FirebaseList extends ListBase<DataSnapshot>
 
   int _indexForKey(String key) {
     assert(key != null);
-    // TODO(jackson): We could binary search since the list is already sorted.
     for (int index = 0; index < _snapshots.length; index++) {
       if (key == _snapshots[index].key) {
         return index;
@@ -134,7 +133,8 @@ class FirebaseList extends ListBase<DataSnapshot>
     onValue(event.snapshot);
   }
 
-  void _onError(DatabaseError error) {
+  void _onError(Object o) {
+    final DatabaseError error = o;
     onError?.call(error);
   }
 }

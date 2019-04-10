@@ -1,10 +1,104 @@
+## 0.8.0+3
+
+* Log messages about automatic configuration of the default app are now less confusing.
+
+## 0.8.0+2
+
+* Remove categories.
+
+## 0.8.0+1
+
+* Log a more detailed warning at build time about the previous AndroidX
+  migration.
+
+## 0.8.0
+
+* **Breaking change**. Migrate from the deprecated original Android Support
+  Library to AndroidX. This shouldn't result in any functional changes, but it
+  requires any Android apps using this plugin to [also
+  migrate](https://developer.android.com/jetpack/androidx/migrate) if they're
+  using the original support library.
+
+## 0.7.0
+
+* Mark Dart code as deprecated where the newer version AdMob deprecates features (Birthday, Gender, and Family targeting).
+* Update gradle dependencies.
+* Add documentation for new AndroidManifest requirements.
+
+## 0.6.1+1
+
+* Bump Android dependencies to latest.
+* __THIS WAS AN UNINTENTIONAL BREAKING CHANGE__. Users should consume 0.6.1 instead if they need the old API, or 0.7.0 for the bumped version.
+* Guide how to fix crash with admob version 17.0.0 in README
+
+## 0.6.1
+
+* listener on MobileAd shouldn't be final.
+* Ad listeners can to be set in or out of Ad initialization.
+
+## 0.6.0
+
+* Add nonPersonalizedAds option to MobileAdTargetingInfo
+
+## 0.5.7
+
+* Bumped mockito dependency to pick up Dart 2 support.
+
+## 0.5.6
+
+* Bump Android and Firebase dependency versions.
+
+## 0.5.5
+
+* Updated Gradle tooling to match Android Studio 3.1.2.
+
+## 0.5.4+1
+
+* Graduate to beta.
+
+## 0.5.4
+
+* Fixed a bug that was causing rewarded video failure event to be called on the wrong listener.
+
+## 0.5.3
+
+* Updated Google Play Services dependencies to version 15.0.0.
+* Added handling of rewarded video completion event.
+
+## 0.5.2
+
+* Simplified podspec for Cocoapods 1.5.0, avoiding link issues in app archives.
+
+## 0.5.1
+
+* Fixed Dart 2 type errors.
+
+## 0.5.0
+
+* **Breaking change**. The BannerAd constructor now requires an AdSize
+  parameter. BannerAds can be created with AdSize.smartBanner, or one of
+  the other predefined AdSize values. Previously BannerAds were always
+  defined with the smartBanner size.
+
+## 0.4.0
+
+* **Breaking change**. Set SDK constraints to match the Flutter beta release.
+
+## 0.3.2
+
+* Fixed Dart 2 type errors.
+
+## 0.3.1
+
+* Enabled use in Swift projects.
+
 ## 0.3.0
 
 * Added support for rewarded video ads.
 * **Breaking change**. The properties and parameters named "unitId" in BannerAd
   and InterstitialAd have been renamed to "adUnitId" to better match AdMob's
   documentation and UI.
-  
+
 ## 0.2.3
 
 * Simplified and upgraded Android project template to Android SDK 27.

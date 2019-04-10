@@ -7,6 +7,7 @@ package io.flutter.plugins.packageinfo;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
@@ -35,12 +36,14 @@ public class PackageInfoPlugin implements MethodCallHandler {
     try {
       Context context = mRegistrar.context();
       if (call.method.equals("getAll")) {
-        PackageInfo info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+        PackageManager pm = context.getPackageManager();
+        PackageInfo info = pm.getPackageInfo(context.getPackageName(), 0);
 
         Map<String, String> map = new HashMap<String, String>();
+        map.put("appName", info.applicationInfo.loadLabel(pm).toString());
         map.put("packageName", context.getPackageName());
         map.put("version", info.versionName);
-        map.put("buildNumber", String.valueOf(info.versionCode));
+        map.put("buildNumber", String.valueOf(getLongVersionCode(info)));
 
         result.success(map);
       } else {
@@ -49,5 +52,13 @@ public class PackageInfoPlugin implements MethodCallHandler {
     } catch (PackageManager.NameNotFoundException ex) {
       result.error("Name not found", ex.getMessage(), null);
     }
+  }
+
+  private static long getLongVersionCode(PackageInfo info) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      return info.getLongVersionCode();
+    }
+    //noinspection deprecation
+    return info.versionCode;
   }
 }

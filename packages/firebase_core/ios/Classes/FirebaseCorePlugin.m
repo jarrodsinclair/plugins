@@ -1,28 +1,36 @@
+// Copyright 2017 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 #import "FirebaseCorePlugin.h"
 
 #import <Firebase/Firebase.h>
 
-@interface FIROptions (FLTFirebaseCorePlugin)
-@property(readonly, nonatomic) NSDictionary *dictionary;
-@end
-
-@implementation FIROptions (FLTFirebaseCorePlugin)
-- (NSDictionary *)dictionary {
+static NSDictionary *getDictionaryFromFIROptions(FIROptions *options) {
+  if (!options) {
+    return nil;
+  }
   return @{
-    @"googleAppID" : self.googleAppID ?: [NSNull null],
-    @"bundleID" : self.bundleID ?: [NSNull null],
-    @"GCMSenderID" : self.GCMSenderID ?: [NSNull null],
-    @"APIKey" : self.APIKey ?: [NSNull null],
-    @"clientID" : self.clientID ?: [NSNull null],
-    @"trackingID" : self.trackingID ?: [NSNull null],
-    @"projectID" : self.projectID ?: [NSNull null],
-    @"androidClientID" : self.androidClientID ?: [NSNull null],
-    @"databaseUrl" : self.databaseURL ?: [NSNull null],
-    @"storageBucket" : self.storageBucket ?: [NSNull null],
-    @"deepLinkURLScheme" : self.deepLinkURLScheme ?: [NSNull null],
+    @"googleAppID" : options.googleAppID ?: [NSNull null],
+    @"bundleID" : options.bundleID ?: [NSNull null],
+    @"GCMSenderID" : options.GCMSenderID ?: [NSNull null],
+    @"APIKey" : options.APIKey ?: [NSNull null],
+    @"clientID" : options.clientID ?: [NSNull null],
+    @"trackingID" : options.trackingID ?: [NSNull null],
+    @"projectID" : options.projectID ?: [NSNull null],
+    @"androidClientID" : options.androidClientID ?: [NSNull null],
+    @"databaseUrl" : options.databaseURL ?: [NSNull null],
+    @"storageBucket" : options.storageBucket ?: [NSNull null],
+    @"deepLinkURLScheme" : options.deepLinkURLScheme ?: [NSNull null],
   };
 }
-@end
+
+static NSDictionary *getDictionaryFromFIRApp(FIRApp *app) {
+  if (!app) {
+    return nil;
+  }
+  return @{@"name" : app.name, @"options" : getDictionaryFromFIROptions(app.options)};
+}
 
 @implementation FLTFirebaseCorePlugin
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar {
@@ -49,7 +57,7 @@
     if (![optionsDictionary[@"trackingID"] isEqual:[NSNull null]])
       options.trackingID = optionsDictionary[@"trackingID"];
     if (![optionsDictionary[@"projectID"] isEqual:[NSNull null]])
-      options.androidClientID = optionsDictionary[@"projectID"];
+      options.projectID = optionsDictionary[@"projectID"];
     if (![optionsDictionary[@"androidClientID"] isEqual:[NSNull null]])
       options.androidClientID = optionsDictionary[@"androidClientID"];
     if (![optionsDictionary[@"databaseURL"] isEqual:[NSNull null]])
@@ -58,20 +66,20 @@
       options.storageBucket = optionsDictionary[@"storageBucket"];
     if (![optionsDictionary[@"deepLinkURLScheme"] isEqual:[NSNull null]])
       options.deepLinkURLScheme = optionsDictionary[@"deepLinkURLScheme"];
-    if (![name isEqual:[NSNull null]]) {
-      [FIRApp configureWithName:name options:options];
-    } else {
-      [FIRApp configureWithOptions:options];
-    }
+    [FIRApp configureWithName:name options:options];
     result(nil);
   } else if ([@"FirebaseApp#allApps" isEqualToString:call.method]) {
     NSDictionary<NSString *, FIRApp *> *allApps = [FIRApp allApps];
     NSMutableArray *appsList = [NSMutableArray array];
     for (NSString *name in allApps) {
       FIRApp *app = allApps[name];
-      [appsList addObject:@{@"name" : app.name, @"options" : app.options.dictionary}];
+      [appsList addObject:getDictionaryFromFIRApp(app)];
     }
     result(appsList.count > 0 ? appsList : nil);
+  } else if ([@"FirebaseApp#appNamed" isEqualToString:call.method]) {
+    NSString *name = call.arguments;
+    FIRApp *app = [FIRApp appNamed:name];
+    result(getDictionaryFromFIRApp(app));
   } else {
     result(FlutterMethodNotImplemented);
   }

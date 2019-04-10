@@ -8,9 +8,45 @@ part of cloud_firestore;
 ///
 /// You can get an instance by calling [Firestore.instance].
 class Firestore {
+  Firestore({FirebaseApp app}) : app = app ?? FirebaseApp.instance {
+    if (_initialized) return;
+    channel.setMethodCallHandler((MethodCall call) async {
+      if (call.method == 'QuerySnapshot') {
+        final QuerySnapshot snapshot = QuerySnapshot._(call.arguments, this);
+        _queryObservers[call.arguments['handle']].add(snapshot);
+      } else if (call.method == 'DocumentSnapshot') {
+        final DocumentSnapshot snapshot = DocumentSnapshot._(
+          call.arguments['path'],
+          _asStringKeyedMap(call.arguments['data']),
+          SnapshotMetadata._(call.arguments['metadata']['hasPendingWrites'],
+              call.arguments['metadata']['isFromCache']),
+          this,
+        );
+        _documentObservers[call.arguments['handle']].add(snapshot);
+      } else if (call.method == 'DoTransaction') {
+        final int transactionId = call.arguments['transactionId'];
+        return _transactionHandlers[transactionId](
+          Transaction(transactionId, this),
+        );
+      }
+    });
+    _initialized = true;
+  }
+
+  /// Gets the instance of Firestore for the default Firebase app.
+  static final Firestore instance = Firestore();
+
+  /// The [FirebaseApp] instance to which this [FirebaseDatabase] belongs.
+  ///
+  /// If null, the default [FirebaseApp] is used.
+  final FirebaseApp app;
+
+  static bool _initialized = false;
+
   @visibleForTesting
-  static const MethodChannel channel = const MethodChannel(
+  static const MethodChannel channel = MethodChannel(
     'plugins.flutter.io/cloud_firestore',
+    StandardMethodCodec(FirestoreMessageCodec()),
   );
 
   static final Map<int, StreamController<QuerySnapshot>> _queryObservers =
@@ -23,44 +59,30 @@ class Firestore {
       <int, TransactionHandler>{};
   static int _transactionHandlerId = 0;
 
-  Firestore._() {
-    channel.setMethodCallHandler((MethodCall call) {
-      if (call.method == 'QuerySnapshot') {
-        final QuerySnapshot snapshot =
-            new QuerySnapshot._(call.arguments, this);
-        _queryObservers[call.arguments['handle']].add(snapshot);
-      } else if (call.method == 'DocumentSnapshot') {
-        final DocumentSnapshot snapshot = new DocumentSnapshot._(
-          call.arguments['path'],
-          call.arguments['data'],
-          this,
-        );
-        _documentObservers[call.arguments['handle']].add(snapshot);
-      } else if (call.method == 'DoTransaction') {
-        final int transactionId = call.arguments['transactionId'];
-        return _transactionHandlers[transactionId](
-          new Transaction(transactionId),
-        );
-      }
-    });
-  }
+  @override
+  bool operator ==(dynamic o) => o is Firestore && o.app == app;
 
-  static Firestore _instance = new Firestore._();
-
-  /// Gets the instance of Firestore for the default Firebase app.
-  static Firestore get instance => _instance;
+  @override
+  int get hashCode => app.hashCode;
 
   /// Gets a [CollectionReference] for the specified Firestore path.
   CollectionReference collection(String path) {
     assert(path != null);
-    return new CollectionReference._(this, path.split('/'));
+    return CollectionReference._(this, path.split('/'));
   }
 
   /// Gets a [DocumentReference] for the specified Firestore path.
   DocumentReference document(String path) {
     assert(path != null);
-    return new DocumentReference._(this, path.split('/'));
+    return DocumentReference._(this, path.split('/'));
   }
+
+  /// Creates a write batch, used for performing multiple writes as a single
+  /// atomic operation.
+  ///
+  /// Unlike transactions, write batches are persisted offline and therefore are
+  /// preferable when you don’t need to condition your writes on read data.
+  WriteBatch batch() => WriteBatch._(this);
 
   /// Executes the given TransactionHandler and then attempts to commit the
   /// changes applied within an atomic transaction.
@@ -85,65 +107,42 @@ class Firestore {
   /// timeout can be adjusted by setting the timeout parameter.
   Future<Map<String, dynamic>> runTransaction(
       TransactionHandler transactionHandler,
-      {Duration timeout: const Duration(seconds: 5)}) async {
+      {Duration timeout = const Duration(seconds: 5)}) async {
     assert(timeout.inMilliseconds > 0,
         'Transaction timeout must be more than 0 milliseconds');
     final int transactionId = _transactionHandlerId++;
     _transactionHandlers[transactionId] = transactionHandler;
-    final Map<String, dynamic> result = await channel.invokeMethod(
-        'Firestore#runTransaction', <String, dynamic>{
+    final Map<dynamic, dynamic> result = await channel
+        .invokeMethod<Map<dynamic, dynamic>>(
+            'Firestore#runTransaction', <String, dynamic>{
+      'app': app.name,
       'transactionId': transactionId,
       'transactionTimeout': timeout.inMilliseconds
     });
-    return result ?? <String, dynamic>{};
-  }
-}
-
-typedef Future<dynamic> TransactionHandler(Transaction transaction);
-
-class Transaction {
-  int _transactionId;
-
-  Transaction(this._transactionId);
-
-  Future<DocumentSnapshot> get(DocumentReference documentReference) async {
-    final dynamic result = await Firestore.channel
-        .invokeMethod('Transaction#get', <String, dynamic>{
-      'transactionId': _transactionId,
-      'path': documentReference.path,
-    });
-    if (result != null) {
-      return new DocumentSnapshot._(
-          documentReference.path, result['data'], Firestore.instance);
-    } else {
-      return null;
-    }
+    return result?.cast<String, dynamic>() ?? <String, dynamic>{};
   }
 
-  Future<Null> delete(DocumentReference documentReference) async {
-    return Firestore.channel
-        .invokeMethod('Transaction#delete', <String, dynamic>{
-      'transactionId': _transactionId,
-      'path': documentReference.path,
+  @deprecated
+  Future<void> enablePersistence(bool enable) async {
+    assert(enable != null);
+    await channel
+        .invokeMethod<void>('Firestore#enablePersistence', <String, dynamic>{
+      'app': app.name,
+      'enable': enable,
     });
   }
 
-  Future<Null> update(
-      DocumentReference documentReference, Map<String, dynamic> data) async {
-    return Firestore.channel
-        .invokeMethod('Transaction#update', <String, dynamic>{
-      'transactionId': _transactionId,
-      'path': documentReference.path,
-      'data': data,
-    });
-  }
-
-  Future<Null> set(
-      DocumentReference documentReference, Map<String, dynamic> data) async {
-    return Firestore.channel.invokeMethod('Transaction#set', <String, dynamic>{
-      'transactionId': _transactionId,
-      'path': documentReference.path,
-      'data': data,
+  Future<void> settings(
+      {bool persistenceEnabled,
+      String host,
+      bool sslEnabled,
+      bool timestampsInSnapshotsEnabled}) async {
+    await channel.invokeMethod<void>('Firestore#settings', <String, dynamic>{
+      'app': app.name,
+      'persistenceEnabled': persistenceEnabled,
+      'host': host,
+      'sslEnabled': sslEnabled,
+      'timestampsInSnapshotsEnabled': timestampsInSnapshotsEnabled,
     });
   }
 }

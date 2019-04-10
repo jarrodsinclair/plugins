@@ -11,6 +11,9 @@ class CollectionReference extends Query {
   CollectionReference._(Firestore firestore, List<String> pathComponents)
       : super._(firestore: firestore, pathComponents: pathComponents);
 
+  /// ID of the referenced collection.
+  String get id => _pathComponents.isEmpty ? null : _pathComponents.last;
+
   /// For subcollections, parent returns the containing DocumentReference.
   ///
   /// For root collections, null is returned.
@@ -18,9 +21,15 @@ class CollectionReference extends Query {
     if (_pathComponents.isEmpty) {
       return null;
     }
-    return new CollectionReference._(
-        _firestore, (new List<String>.from(_pathComponents)..removeLast()));
+    return CollectionReference._(
+      firestore,
+      (List<String>.from(_pathComponents)..removeLast()),
+    );
   }
+
+  /// A string containing the slash-separated path to this  CollectionReference
+  /// (relative to the root of the database).
+  String get path => _path;
 
   /// Returns a `DocumentReference` with the provided path.
   ///
@@ -32,12 +41,11 @@ class CollectionReference extends Query {
     List<String> childPath;
     if (path == null) {
       final String key = PushIdGenerator.generatePushChildName();
-      childPath = new List<String>.from(_pathComponents)..add(key);
+      childPath = List<String>.from(_pathComponents)..add(key);
     } else {
-      childPath = new List<String>.from(_pathComponents)
-        ..addAll(path.split(('/')));
+      childPath = List<String>.from(_pathComponents)..addAll(path.split(('/')));
     }
-    return new DocumentReference._(_firestore, childPath);
+    return DocumentReference._(firestore, childPath);
   }
 
   /// Returns a `DocumentReference` with an auto-generated ID, after
@@ -50,10 +58,4 @@ class CollectionReference extends Query {
     await newDocument.setData(data);
     return newDocument;
   }
-}
-
-class ServerValue {
-  static const Map<String, String> timestamp = const <String, String>{
-    '.sv': 'timestamp'
-  };
 }

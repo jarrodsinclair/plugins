@@ -26,15 +26,14 @@ class GoogleUserCircleAvatar extends StatelessWidget {
     this.placeholderPhotoUrl,
     this.foregroundColor,
     this.backgroundColor,
-  })
-      : assert(identity != null);
+  }) : assert(identity != null);
 
   /// A regular expression that matches against the "size directive" path
   /// segment of Google profile image URLs.
   ///
   /// The format is is "`/sNN-c/`", where `NN` is the max width/height of the
   /// image, and "`c`" indicates we want the image cropped.
-  static final RegExp sizeDirective = new RegExp(r'^s[0-9]{1,5}(-c)?$');
+  static final RegExp sizeDirective = RegExp(r'^s[0-9]{1,5}(-c)?$');
 
   /// The Google user's identity; guaranteed to be non-null.
   final GoogleIdentity identity;
@@ -61,10 +60,10 @@ class GoogleUserCircleAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return new CircleAvatar(
+    return CircleAvatar(
       backgroundColor: backgroundColor,
       foregroundColor: foregroundColor,
-      child: new LayoutBuilder(builder: _buildClippedImage),
+      child: LayoutBuilder(builder: _buildClippedImage),
     );
   }
 
@@ -80,16 +79,15 @@ class GoogleUserCircleAvatar extends StatelessWidget {
     }
     final Uri profileUri = Uri.parse(photoUrl);
     final List<String> pathSegments =
-        new List<String>.from(profileUri.pathSegments);
+        List<String>.from(profileUri.pathSegments);
     pathSegments
       ..removeWhere(sizeDirective.hasMatch)
       ..insert(pathSegments.length - 1, 's${size.round()}-c');
-    return new Uri(
+    return Uri(
       scheme: profileUri.scheme,
       host: profileUri.host,
       pathSegments: pathSegments,
-    )
-        .toString();
+    ).toString();
   }
 
   Widget _buildClippedImage(BuildContext context, BoxConstraints constraints) {
@@ -107,8 +105,8 @@ class GoogleUserCircleAvatar extends StatelessWidget {
         .firstWhere((String str) => str != null && str.trimLeft().isNotEmpty)
         .trimLeft()[0]
         .toUpperCase();
-    final Widget placeholder = new Center(
-      child: new Text(placeholderChar, textAlign: TextAlign.center),
+    final Widget placeholder = Center(
+      child: Text(placeholderChar, textAlign: TextAlign.center),
     );
 
     final String photoUrl = identity.photoUrl ?? placeholderPhotoUrl;
@@ -122,16 +120,16 @@ class GoogleUserCircleAvatar extends StatelessWidget {
     final String sizedPhotoUrl = _sizedProfileImageUrl(photoUrl, size);
 
     // Fade the photo in over the top of the placeholder.
-    return new SizedBox(
+    return SizedBox(
         width: size,
         height: size,
-        child: new ClipOval(
-          child: new Stack(fit: StackFit.expand, children: <Widget>[
+        child: ClipOval(
+          child: Stack(fit: StackFit.expand, children: <Widget>[
             placeholder,
-            new FadeInImage.memoryNetwork(
+            FadeInImage.memoryNetwork(
               // This creates a transparent placeholder image, so that
               // [placeholder] shows through.
-              placeholder: new Uint8List((size.round() * size.round())),
+              placeholder: Uint8List((size.round() * size.round())),
               image: sizedPhotoUrl,
             )
           ]),

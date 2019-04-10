@@ -2,16 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-@import UIKit;
-
 #import "ImagePickerPlugin.h"
 
-@interface FLTImagePickerPlugin ()<UINavigationControllerDelegate, UIImagePickerControllerDelegate>
+#import <AVFoundation/AVFoundation.h>
+#import <MobileCoreServices/MobileCoreServices.h>
+#import <Photos/Photos.h>
+#import <UIKit/UIKit.h>
+
+@interface FLTImagePickerPlugin () <UINavigationControllerDelegate, UIImagePickerControllerDelegate>
 @end
 
-static const int SOURCE_ASK_USER = 0;
-static const int SOURCE_CAMERA = 1;
-static const int SOURCE_GALLERY = 2;
+static const int SOURCE_CAMERA = 0;
+static const int SOURCE_GALLERY = 1;
 
 @implementation FLTImagePickerPlugin {
   FlutterResult _result;
@@ -22,7 +24,7 @@ static const int SOURCE_GALLERY = 2;
 
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar {
   FlutterMethodChannel *channel =
-      [FlutterMethodChannel methodChannelWithName:@"image_picker"
+      [FlutterMethodChannel methodChannelWithName:@"plugins.flutter.io/image_picker"
                                   binaryMessenger:[registrar messenger]];
   UIViewController *viewController =
       [UIApplication sharedApplication].delegate.window.rootViewController;
@@ -51,6 +53,7 @@ static const int SOURCE_GALLERY = 2;
   if ([@"pickImage" isEqualToString:call.method]) {
     _imagePickerController.modalPresentationStyle = UIModalPresentationCurrentContext;
     _imagePickerController.delegate = self;
+    _imagePickerController.mediaTypes = @[ (NSString *)kUTTypeImage ];
 
     _result = result;
     _arguments = call.arguments;
@@ -58,11 +61,8 @@ static const int SOURCE_GALLERY = 2;
     int imageSource = [[_arguments objectForKey:@"source"] intValue];
 
     switch (imageSource) {
-      case SOURCE_ASK_USER:
-        [self showImageSourceSelector];
-        break;
       case SOURCE_CAMERA:
-        [self showCamera];
+        [self checkAuthorization];
         break;
       case SOURCE_GALLERY:
         [self showPhotoLibrary];
@@ -73,37 +73,44 @@ static const int SOURCE_GALLERY = 2;
                                    details:nil]);
         break;
     }
+  } else if ([@"pickVideo" isEqualToString:call.method]) {
+    _imagePickerController.modalPresentationStyle = UIModalPresentationCurrentContext;
+    _imagePickerController.delegate = self;
+    _imagePickerController.mediaTypes = @[
+      (NSString *)kUTTypeMovie, (NSString *)kUTTypeAVIMovie, (NSString *)kUTTypeVideo,
+      (NSString *)kUTTypeMPEG4
+    ];
+    _imagePickerController.videoQuality = UIImagePickerControllerQualityTypeHigh;
+
+    _result = result;
+    _arguments = call.arguments;
+
+    int imageSource = [[_arguments objectForKey:@"source"] intValue];
+
+    switch (imageSource) {
+      case SOURCE_CAMERA:
+        [self checkAuthorization];
+        break;
+      case SOURCE_GALLERY:
+        [self showPhotoLibrary];
+        break;
+      default:
+        result([FlutterError errorWithCode:@"invalid_source"
+                                   message:@"Invalid video source."
+                                   details:nil]);
+        break;
+    }
   } else {
     result(FlutterMethodNotImplemented);
   }
 }
 
-- (void)showImageSourceSelector {
-  UIAlertControllerStyle style = UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad
-                                     ? UIAlertControllerStyleAlert
-                                     : UIAlertControllerStyleActionSheet;
-
-  UIAlertController *alert =
-      [UIAlertController alertControllerWithTitle:nil message:nil preferredStyle:style];
-  UIAlertAction *camera = [UIAlertAction actionWithTitle:@"Take Photo"
-                                                   style:UIAlertActionStyleDefault
-                                                 handler:^(UIAlertAction *action) {
-                                                   [self showCamera];
-                                                 }];
-  UIAlertAction *library = [UIAlertAction actionWithTitle:@"Choose Photo"
-                                                    style:UIAlertActionStyleDefault
-                                                  handler:^(UIAlertAction *action) {
-                                                    [self showPhotoLibrary];
-                                                  }];
-  UIAlertAction *cancel =
-      [UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil];
-  [alert addAction:camera];
-  [alert addAction:library];
-  [alert addAction:cancel];
-  [_viewController presentViewController:alert animated:YES completion:nil];
-}
-
 - (void)showCamera {
+  @synchronized(self) {
+    if (_imagePickerController.beingPresented) {
+      return;
+    }
+  }
   // Camera is not available on simulators
   if ([UIImagePickerController isSourceTypeAvailable:UIImagePickerControllerSourceTypeCamera]) {
     _imagePickerController.sourceType = UIImagePickerControllerSourceTypeCamera;
@@ -117,6 +124,53 @@ static const int SOURCE_GALLERY = 2;
   }
 }
 
+- (void)checkAuthorization {
+  AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
+
+  switch (status) {
+    case AVAuthorizationStatusAuthorized:
+      [self showCamera];
+      break;
+    case AVAuthorizationStatusNotDetermined: {
+      [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo
+                               completionHandler:^(BOOL granted) {
+                                 if (granted) {
+                                   dispatch_async(dispatch_get_main_queue(), ^{
+                                     if (granted) {
+                                       [self showCamera];
+                                     }
+                                   });
+                                 } else {
+                                   dispatch_async(dispatch_get_main_queue(), ^{
+                                     [self errorNoAccess:AVAuthorizationStatusDenied];
+                                   });
+                                 }
+                               }];
+    }; break;
+    case AVAuthorizationStatusDenied:
+    case AVAuthorizationStatusRestricted:
+    default:
+      [self errorNoAccess:status];
+      break;
+  }
+}
+
+- (void)errorNoAccess:(AVAuthorizationStatus)status {
+  switch (status) {
+    case AVAuthorizationStatusRestricted:
+      _result([FlutterError errorWithCode:@"camera_access_restricted"
+                                  message:@"The user is not allowed to use the camera."
+                                  details:nil]);
+      break;
+    case AVAuthorizationStatusDenied:
+    default:
+      _result([FlutterError errorWithCode:@"camera_access_denied"
+                                  message:@"The user did not allow camera access."
+                                  details:nil]);
+      break;
+  }
+}
+
 - (void)showPhotoLibrary {
   // No need to check if SourceType is available. It always is.
   _imagePickerController.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
@@ -125,34 +179,57 @@ static const int SOURCE_GALLERY = 2;
 
 - (void)imagePickerController:(UIImagePickerController *)picker
     didFinishPickingMediaWithInfo:(NSDictionary<NSString *, id> *)info {
-  [_imagePickerController dismissViewControllerAnimated:YES completion:nil];
+  NSURL *videoURL = [info objectForKey:UIImagePickerControllerMediaURL];
   UIImage *image = [info objectForKey:UIImagePickerControllerEditedImage];
-  if (image == nil) {
-    image = [info objectForKey:UIImagePickerControllerOriginalImage];
+  [_imagePickerController dismissViewControllerAnimated:YES completion:nil];
+  // The method dismissViewControllerAnimated does not immediately prevent
+  // further didFinishPickingMediaWithInfo invocations. A nil check is necessary
+  // to prevent below code to be unwantly executed multiple times and cause a
+  // crash.
+  if (!_result) {
+    return;
   }
-  image = [self normalizedImage:image];
-
-  NSNumber *maxWidth = [_arguments objectForKey:@"maxWidth"];
-  NSNumber *maxHeight = [_arguments objectForKey:@"maxHeight"];
-
-  if (maxWidth != (id)[NSNull null] || maxHeight != (id)[NSNull null]) {
-    image = [self scaledImage:image maxWidth:maxWidth maxHeight:maxHeight];
-  }
-
-  NSData *data = UIImageJPEGRepresentation(image, 1.0);
-  NSString *tmpDirectory = NSTemporaryDirectory();
-  NSString *guid = [[NSProcessInfo processInfo] globallyUniqueString];
-  // TODO(jackson): Using the cache directory might be better than temporary
-  // directory.
-  NSString *tmpFile = [NSString stringWithFormat:@"image_picker_%@.jpg", guid];
-  NSString *tmpPath = [tmpDirectory stringByAppendingPathComponent:tmpFile];
-  if ([[NSFileManager defaultManager] createFileAtPath:tmpPath contents:data attributes:nil]) {
-    _result(tmpPath);
+  if (videoURL != nil) {
+    _result(videoURL.description);
   } else {
-    _result([FlutterError errorWithCode:@"create_error"
-                                message:@"Temporary file could not be created"
-                                details:nil]);
+    if (image == nil) {
+      image = [info objectForKey:UIImagePickerControllerOriginalImage];
+    }
+    image = [self normalizedImage:image];
+
+    NSNumber *maxWidth = [_arguments objectForKey:@"maxWidth"];
+    NSNumber *maxHeight = [_arguments objectForKey:@"maxHeight"];
+
+    if (maxWidth != (id)[NSNull null] || maxHeight != (id)[NSNull null]) {
+      image = [self scaledImage:image maxWidth:maxWidth maxHeight:maxHeight];
+    }
+
+    BOOL saveAsPNG = [self hasAlpha:image];
+    NSData *data =
+        saveAsPNG ? UIImagePNGRepresentation(image) : UIImageJPEGRepresentation(image, 1.0);
+    NSString *fileExtension = saveAsPNG ? @"image_picker_%@.png" : @"image_picker_%@.jpg";
+    NSString *guid = [[NSProcessInfo processInfo] globallyUniqueString];
+    NSString *tmpFile = [NSString stringWithFormat:fileExtension, guid];
+    NSString *tmpDirectory = NSTemporaryDirectory();
+    NSString *tmpPath = [tmpDirectory stringByAppendingPathComponent:tmpFile];
+
+    if ([[NSFileManager defaultManager] createFileAtPath:tmpPath contents:data attributes:nil]) {
+      _result(tmpPath);
+    } else {
+      _result([FlutterError errorWithCode:@"create_error"
+                                  message:@"Temporary file could not be created"
+                                  details:nil]);
+    }
   }
+
+  _result = nil;
+  _arguments = nil;
+}
+
+- (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker {
+  [_imagePickerController dismissViewControllerAnimated:YES completion:nil];
+  _result(nil);
+
   _result = nil;
   _arguments = nil;
 }
@@ -189,8 +266,8 @@ static const int SOURCE_GALLERY = 2;
   bool shouldDownscale = shouldDownscaleWidth || shouldDownscaleHeight;
 
   if (shouldDownscale) {
-    double downscaledWidth = (height / originalHeight) * originalWidth;
-    double downscaledHeight = (width / originalWidth) * originalHeight;
+    double downscaledWidth = floor((height / originalHeight) * originalWidth);
+    double downscaledHeight = floor((width / originalWidth) * originalHeight);
 
     if (width < height) {
       if (!hasMaxWidth) {
@@ -220,6 +297,13 @@ static const int SOURCE_GALLERY = 2;
   UIGraphicsEndImageContext();
 
   return scaledImage;
+}
+
+// Returns true if the image has an alpha layer
+- (BOOL)hasAlpha:(UIImage *)image {
+  CGImageAlphaInfo alpha = CGImageGetAlphaInfo(image.CGImage);
+  return (alpha == kCGImageAlphaFirst || alpha == kCGImageAlphaLast ||
+          alpha == kCGImageAlphaPremultipliedFirst || alpha == kCGImageAlphaPremultipliedLast);
 }
 
 @end

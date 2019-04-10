@@ -5,26 +5,47 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/services.dart';
 
-void main() {
-  runApp(new MaterialApp(title: 'Firestore Example', home: new MyHomePage()));
+Future<void> main() async {
+  final FirebaseApp app = await FirebaseApp.configure(
+    name: 'test',
+    options: const FirebaseOptions(
+      googleAppID: '1:79601577497:ios:5f2bcc6ba8cecddd',
+      gcmSenderID: '79601577497',
+      apiKey: 'AIzaSyArgmRGfB5kiQT6CunAOmKRVKEsxKmy6YI-G72PVU',
+      projectID: 'flutter-firestore',
+    ),
+  );
+  final Firestore firestore = Firestore(app: app);
+  await firestore.settings(timestampsInSnapshotsEnabled: true);
+
+  runApp(MaterialApp(
+      title: 'Firestore Example', home: MyHomePage(firestore: firestore)));
 }
 
-class BookList extends StatelessWidget {
+class MessageList extends StatelessWidget {
+  MessageList({this.firestore});
+
+  final Firestore firestore;
+
   @override
   Widget build(BuildContext context) {
-    return new StreamBuilder<QuerySnapshot>(
-      stream: Firestore.instance.collection('books').snapshots,
+    return StreamBuilder<QuerySnapshot>(
+      stream: firestore.collection('messages').snapshots(),
       builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
         if (!snapshot.hasData) return const Text('Loading...');
-        return new ListView(
-          children: snapshot.data.documents.map((DocumentSnapshot document) {
-            return new ListTile(
-              title: new Text(document['message']),
+        final int messageCount = snapshot.data.documents.length;
+        return ListView.builder(
+          itemCount: messageCount,
+          itemBuilder: (_, int index) {
+            final DocumentSnapshot document = snapshot.data.documents[index];
+            return ListTile(
+              title: Text(document['message'] ?? '<No message retrieved>'),
+              subtitle: Text('Message ${index + 1} of $messageCount'),
             );
-          }).toList(),
+          },
         );
       },
     );
@@ -32,44 +53,28 @@ class BookList extends StatelessWidget {
 }
 
 class MyHomePage extends StatelessWidget {
-  CollectionReference get messages => Firestore.instance.collection('messages');
+  MyHomePage({this.firestore});
+  final Firestore firestore;
+  CollectionReference get messages => firestore.collection('messages');
 
-  Future<Null> _addMessage() async {
-//    Firestore.instance
-//        .collection('books')
-//        .document()
-//        .setData(<String, String>{'message': 'Hello world!'});
-    final TransactionHandler transactionHandler = (Transaction tx) async {
-      print('handler on dart side');
-      final DocumentSnapshot documentSnapshot = await tx
-          .get(Firestore.instance.document('books/BxsUKLVDF3BLTlQO8puk'));
-
-      await tx.update(documentSnapshot.reference, <String, dynamic>{
-        'message': documentSnapshot.data['message'] + ' good'
-      });
-      return <String, dynamic>{'val': 1};
-    };
-    Firestore.instance
-        .runTransaction(transactionHandler, timeout: new Duration(seconds: 10))
-        .then((Map<String, dynamic> result) {
-      print(result);
-      print('transaction is complete');
-    }).catchError((PlatformException e) {
-      print('dart side error message: ' + e.message);
+  Future<void> _addMessage() async {
+    await messages.add(<String, dynamic>{
+      'message': 'Hello world!',
+      'created_at': FieldValue.serverTimestamp(),
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return new Scaffold(
-      appBar: new AppBar(
+    return Scaffold(
+      appBar: AppBar(
         title: const Text('Firestore Example'),
       ),
-      body: new BookList(),
-      floatingActionButton: new FloatingActionButton(
+      body: MessageList(firestore: firestore),
+      floatingActionButton: FloatingActionButton(
         onPressed: _addMessage,
         tooltip: 'Increment',
-        child: new Icon(Icons.add),
+        child: const Icon(Icons.add),
       ),
     );
   }

@@ -8,24 +8,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('$SharedPreferences', () {
-    const MethodChannel channel = const MethodChannel(
+    const MethodChannel channel = MethodChannel(
       'plugins.flutter.io/shared_preferences',
     );
 
-    const Map<String, dynamic> kTestValues = const <String, dynamic>{
+    const Map<String, dynamic> kTestValues = <String, dynamic>{
       'flutter.String': 'hello world',
       'flutter.bool': true,
       'flutter.int': 42,
       'flutter.double': 3.14159,
-      'flutter.List': const <String>['foo', 'bar'],
+      'flutter.List': <String>['foo', 'bar'],
     };
 
-    const Map<String, dynamic> kTestValues2 = const <String, dynamic>{
+    const Map<String, dynamic> kTestValues2 = <String, dynamic>{
       'flutter.String': 'goodbye world',
       'flutter.bool': false,
       'flutter.int': 1337,
       'flutter.double': 2.71828,
-      'flutter.List': const <String>['baz', 'quox'],
+      'flutter.List': <String>['baz', 'quox'],
     };
 
     final List<MethodCall> log = <MethodCall>[];
@@ -48,6 +48,11 @@ void main() {
     });
 
     test('reading', () async {
+      expect(preferences.get('String'), kTestValues['flutter.String']);
+      expect(preferences.get('bool'), kTestValues['flutter.bool']);
+      expect(preferences.get('int'), kTestValues['flutter.int']);
+      expect(preferences.get('double'), kTestValues['flutter.double']);
+      expect(preferences.get('List'), kTestValues['flutter.List']);
       expect(preferences.getString('String'), kTestValues['flutter.String']);
       expect(preferences.getBool('bool'), kTestValues['flutter.bool']);
       expect(preferences.getInt('int'), kTestValues['flutter.int']);
@@ -57,18 +62,13 @@ void main() {
     });
 
     test('writing', () async {
-      preferences.setString('String', kTestValues2['flutter.String']);
-      preferences.setBool('bool', kTestValues2['flutter.bool']);
-      preferences.setInt('int', kTestValues2['flutter.int']);
-      preferences.setDouble('double', kTestValues2['flutter.double']);
-      preferences.setStringList('List', kTestValues2['flutter.List']);
-      expect(preferences.getString('String'), kTestValues2['flutter.String']);
-      expect(preferences.getBool('bool'), kTestValues2['flutter.bool']);
-      expect(preferences.getInt('int'), kTestValues2['flutter.int']);
-      expect(preferences.getDouble('double'), kTestValues2['flutter.double']);
-      expect(preferences.getStringList('List'), kTestValues2['flutter.List']);
-      expect(log, equals(<MethodCall>[]));
-      await preferences.commit();
+      await Future.wait(<Future<bool>>[
+        preferences.setString('String', kTestValues2['flutter.String']),
+        preferences.setBool('bool', kTestValues2['flutter.bool']),
+        preferences.setInt('int', kTestValues2['flutter.int']),
+        preferences.setDouble('double', kTestValues2['flutter.double']),
+        preferences.setStringList('List', kTestValues2['flutter.List'])
+      ]);
       expect(
         log,
         <Matcher>[
@@ -92,9 +92,16 @@ void main() {
             'key': 'flutter.List',
             'value': kTestValues2['flutter.List']
           }),
-          isMethodCall('commit', arguments: null),
         ],
       );
+      log.clear();
+
+      expect(preferences.getString('String'), kTestValues2['flutter.String']);
+      expect(preferences.getBool('bool'), kTestValues2['flutter.bool']);
+      expect(preferences.getInt('int'), kTestValues2['flutter.int']);
+      expect(preferences.getDouble('double'), kTestValues2['flutter.double']);
+      expect(preferences.getStringList('List'), kTestValues2['flutter.List']);
+      expect(log, equals(<MethodCall>[]));
     });
 
     test('removing', () async {
@@ -104,20 +111,27 @@ void main() {
         ..setBool(key, null)
         ..setInt(key, null)
         ..setDouble(key, null)
-        ..setStringList(key, null)
-        ..remove(key);
-      await preferences.commit();
+        ..setStringList(key, null);
+      await preferences.remove(key);
       expect(
-        log,
-        new List<Matcher>.filled(
-          6,
-          isMethodCall(
-            'remove',
-            arguments: <String, dynamic>{'key': 'flutter.$key'},
-          ),
-          growable: true,
-        )..add(isMethodCall('commit', arguments: null)),
-      );
+          log,
+          List<Matcher>.filled(
+            6,
+            isMethodCall(
+              'remove',
+              arguments: <String, dynamic>{'key': 'flutter.$key'},
+            ),
+            growable: true,
+          ));
+    });
+
+    test('containsKey', () async {
+      const String key = 'testKey';
+
+      expect(false, preferences.containsKey(key));
+
+      preferences.setString(key, 'test');
+      expect(true, preferences.containsKey(key));
     });
 
     test('clearing', () async {
@@ -131,8 +145,14 @@ void main() {
     });
 
     test('mocking', () async {
+      // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+      // https://github.com/flutter/flutter/issues/26431
+      // ignore: strong_mode_implicit_dynamic_method
       expect(await channel.invokeMethod('getAll'), kTestValues);
       SharedPreferences.setMockInitialValues(kTestValues2);
+      // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+      // https://github.com/flutter/flutter/issues/26431
+      // ignore: strong_mode_implicit_dynamic_method
       expect(await channel.invokeMethod('getAll'), kTestValues2);
     });
   });

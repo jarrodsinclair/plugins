@@ -10,19 +10,26 @@
 // for more info.
 static NSString *const kClientIdKey = @"CLIENT_ID";
 
-@interface NSError (FlutterError)
-@property(readonly, nonatomic) FlutterError *flutterError;
-@end
+// These error codes must match with ones declared on Android and Dart sides.
+static NSString *const kErrorReasonSignInRequired = @"sign_in_required";
+static NSString *const kErrorReasonSignInCanceled = @"sign_in_canceled";
+static NSString *const kErrorReasonSignInFailed = @"sign_in_failed";
 
-@implementation NSError (FlutterError)
-- (FlutterError *)flutterError {
-  return [FlutterError errorWithCode:@"exception"
-                             message:self.domain
-                             details:self.localizedDescription];
+static FlutterError *getFlutterError(NSError *error) {
+  NSString *errorCode;
+  if (error.code == kGIDSignInErrorCodeHasNoAuthInKeychain) {
+    errorCode = kErrorReasonSignInRequired;
+  } else if (error.code == kGIDSignInErrorCodeCanceled) {
+    errorCode = kErrorReasonSignInCanceled;
+  } else {
+    errorCode = kErrorReasonSignInFailed;
+  }
+  return [FlutterError errorWithCode:errorCode
+                             message:error.domain
+                             details:error.localizedDescription];
 }
-@end
 
-@interface FLTGoogleSignInPlugin ()<GIDSignInDelegate, GIDSignInUIDelegate>
+@interface FLTGoogleSignInPlugin () <GIDSignInDelegate, GIDSignInUIDelegate>
 @end
 
 @implementation FLTGoogleSignInPlugin {
@@ -55,31 +62,46 @@ static NSString *const kClientIdKey = @"CLIENT_ID";
 
 - (void)handleMethodCall:(FlutterMethodCall *)call result:(FlutterResult)result {
   if ([call.method isEqualToString:@"init"]) {
-    NSString *path = [[NSBundle mainBundle] pathForResource:@"GoogleService-Info" ofType:@"plist"];
-    if (path) {
-      NSMutableDictionary *plist = [[NSMutableDictionary alloc] initWithContentsOfFile:path];
-      [GIDSignIn sharedInstance].clientID = plist[kClientIdKey];
-      [GIDSignIn sharedInstance].scopes = call.arguments[@"scopes"];
-      [GIDSignIn sharedInstance].hostedDomain = call.arguments[@"hostedDomain"];
-      result(nil);
-    } else {
-      result([FlutterError errorWithCode:@"missing-config"
-                                 message:@"GoogleService-Info.plist file not found"
+    NSString *signInOption = call.arguments[@"signInOption"];
+    if ([signInOption isEqualToString:@"SignInOption.games"]) {
+      result([FlutterError errorWithCode:@"unsupported-options"
+                                 message:@"Games sign in is not supported on iOS"
                                  details:nil]);
+    } else {
+      NSString *path = [[NSBundle mainBundle] pathForResource:@"GoogleService-Info"
+                                                       ofType:@"plist"];
+      if (path) {
+        NSMutableDictionary *plist = [[NSMutableDictionary alloc] initWithContentsOfFile:path];
+        [GIDSignIn sharedInstance].clientID = plist[kClientIdKey];
+        [GIDSignIn sharedInstance].scopes = call.arguments[@"scopes"];
+        [GIDSignIn sharedInstance].hostedDomain = call.arguments[@"hostedDomain"];
+        result(nil);
+      } else {
+        result([FlutterError errorWithCode:@"missing-config"
+                                   message:@"GoogleService-Info.plist file not found"
+                                   details:nil]);
+      }
     }
   } else if ([call.method isEqualToString:@"signInSilently"]) {
     if ([self setAccountRequest:result]) {
       [[GIDSignIn sharedInstance] signInSilently];
     }
+  } else if ([call.method isEqualToString:@"isSignedIn"]) {
+    result(@([[GIDSignIn sharedInstance] hasAuthInKeychain]));
   } else if ([call.method isEqualToString:@"signIn"]) {
     if ([self setAccountRequest:result]) {
-      [[GIDSignIn sharedInstance] signIn];
+      @try {
+        [[GIDSignIn sharedInstance] signIn];
+      } @catch (NSException *e) {
+        result([FlutterError errorWithCode:@"google_sign_in" message:e.reason details:e.name]);
+        [e raise];
+      }
     }
   } else if ([call.method isEqualToString:@"getTokens"]) {
     GIDGoogleUser *currentUser = [GIDSignIn sharedInstance].currentUser;
     GIDAuthentication *auth = currentUser.authentication;
     [auth getTokensWithHandler:^void(GIDAuthentication *authentication, NSError *error) {
-      result(error != nil ? error.flutterError : @{
+      result(error != nil ? getFlutterError(error) : @{
         @"idToken" : authentication.idToken,
         @"accessToken" : authentication.accessToken,
       });
@@ -91,6 +113,10 @@ static NSString *const kClientIdKey = @"CLIENT_ID";
     if ([self setAccountRequest:result]) {
       [[GIDSignIn sharedInstance] disconnect];
     }
+  } else if ([call.method isEqualToString:@"clearAuthCache"]) {
+    // There's nothing to be done here on iOS since the expired/invalid
+    // tokens are refreshed automatically by getTokensWithHandler.
+    result(nil);
   } else {
     result(FlutterMethodNotImplemented);
   }
@@ -133,15 +159,8 @@ static NSString *const kClientIdKey = @"CLIENT_ID";
     didSignInForUser:(GIDGoogleUser *)user
            withError:(NSError *)error {
   if (error != nil) {
-    if (error.code == kGIDSignInErrorCodeHasNoAuthInKeychain ||
-        error.code == kGIDSignInErrorCodeCanceled) {
-      // Occurs when silent sign-in is not possible or user has cancelled sign
-      // in,
-      // return an empty user in this case
-      [self respondWithAccount:nil error:nil];
-    } else {
-      [self respondWithAccount:nil error:error];
-    }
+    // Forward all errors and let Dart side decide how to handle.
+    [self respondWithAccount:nil error:error];
   } else {
     NSURL *photoUrl;
     if (user.profile.hasImage) {
@@ -170,7 +189,7 @@ static NSString *const kClientIdKey = @"CLIENT_ID";
 - (void)respondWithAccount:(id)account error:(NSError *)error {
   FlutterResult result = _accountRequest;
   _accountRequest = nil;
-  result(error != nil ? error.flutterError : account);
+  result(error != nil ? getFlutterError(error) : account);
 }
 
 @end

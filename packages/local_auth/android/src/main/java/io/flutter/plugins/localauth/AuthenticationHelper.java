@@ -17,14 +17,14 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
-import android.support.v4.content.ContextCompat;
-import android.support.v4.hardware.fingerprint.FingerprintManagerCompat;
-import android.support.v4.os.CancellationSignal;
 import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
+import androidx.core.content.ContextCompat;
+import androidx.core.hardware.fingerprint.FingerprintManagerCompat;
+import androidx.core.os.CancellationSignal;
 import io.flutter.plugin.common.MethodCall;
 
 /**
@@ -216,7 +216,7 @@ class AuthenticationHelper extends FingerprintManagerCompat.AuthenticationCallba
     resultInfo.setText(message);
   }
 
-  // Supress inflateParams lint because dialogs do not need to attach to a parent view.
+  // Suppress inflateParams lint because dialogs do not need to attach to a parent view.
   @SuppressLint("InflateParams")
   private void showFingerprintDialog() {
     View view = LayoutInflater.from(activity).inflate(R.layout.scan_fp, null, false);
@@ -242,7 +242,7 @@ class AuthenticationHelper extends FingerprintManagerCompat.AuthenticationCallba
             .show();
   }
 
-  // Supress inflateParams lint because dialogs do not need to attach to a parent view.
+  // Suppress inflateParams lint because dialogs do not need to attach to a parent view.
   @SuppressLint("InflateParams")
   private void showGoToSettingsDialog() {
     View view = LayoutInflater.from(activity).inflate(R.layout.go_to_setting, null, false);

@@ -42,22 +42,61 @@ Binding a `CollectionReference` to a `ListView`:
 class BookList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return new StreamBuilder(
-      stream: Firestore.instance.collection('books').snapshots,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return new Text('Loading...');
-        return new ListView(
-          children: snapshot.data.documents.map((document) {
-            return new ListTile(
-              title: new Text(document['title']),
-              subtitle: new Text(document['author']),
+    return StreamBuilder<QuerySnapshot>(
+      stream: Firestore.instance.collection('books').snapshots(),
+      builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
+        if (snapshot.hasError)
+          return new Text('Error: ${snapshot.error}');
+        switch (snapshot.connectionState) {
+          case ConnectionState.waiting: return new Text('Loading...');
+          default:
+            return new ListView(
+              children: snapshot.data.documents.map((DocumentSnapshot document) {
+                return new ListTile(
+                  title: new Text(document['title']),
+                  subtitle: new Text(document['author']),
+                );
+              }).toList(),
             );
-          }).toList(),
-        );
+        }
       },
     );
   }
 }
+```
+
+Performing a query:
+```dart
+Firestore.instance
+    .collection('talks')
+    .where("topic", isEqualTo: "flutter")
+    .snapshots()
+    .listen((data) =>
+        data.documents.forEach((doc) => print(doc["title"])));
+```
+
+Get a specific document:
+
+```dart
+Firestore.instance
+        .collection('talks')
+        .document('document-name')
+        .get()
+        .then((DocumentSnapshot ds) {
+      // use ds as a snapshot
+    });
+```
+
+Running a transaction:
+
+```dart
+final DocumentReference postRef = Firestore.instance.document('posts/123');
+Firestore.instance.runTransaction((Transaction tx) async {
+  DocumentSnapshot postSnapshot = await tx.get(postRef);
+  if (postSnapshot.exists) {
+    await tx.update(postRef, <String, dynamic>{'likesCount': postSnapshot.data['likesCount'] + 1});
+  }
+});
 ```
 
 ## Getting Started

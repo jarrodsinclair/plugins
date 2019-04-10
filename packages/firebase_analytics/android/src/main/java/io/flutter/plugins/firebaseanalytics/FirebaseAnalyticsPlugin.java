@@ -21,7 +21,8 @@ public class FirebaseAnalyticsPlugin implements MethodCallHandler {
   private final FirebaseAnalytics firebaseAnalytics;
 
   public static void registerWith(PluginRegistry.Registrar registrar) {
-    final MethodChannel channel = new MethodChannel(registrar.messenger(), "firebase_analytics");
+    final MethodChannel channel =
+        new MethodChannel(registrar.messenger(), "plugins.flutter.io/firebase_analytics");
     channel.setMethodCallHandler(new FirebaseAnalyticsPlugin(registrar));
   }
 
@@ -54,6 +55,9 @@ public class FirebaseAnalyticsPlugin implements MethodCallHandler {
         break;
       case "setUserProperty":
         handleSetUserProperty(call, result);
+        break;
+      case "resetAnalyticsData":
+        handleResetAnalyticsData(call, result);
         break;
       default:
         result.notImplemented();
@@ -119,6 +123,11 @@ public class FirebaseAnalyticsPlugin implements MethodCallHandler {
     final String value = (String) arguments.get("value");
 
     firebaseAnalytics.setUserProperty(name, value);
+    result.success(null);
+  }
+
+  private void handleResetAnalyticsData(MethodCall call, Result result) {
+    firebaseAnalytics.resetAnalyticsData();
     result.success(null);
   }
 

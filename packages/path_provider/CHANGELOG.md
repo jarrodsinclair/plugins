@@ -1,3 +1,24 @@
+## 0.5.0+1
+
+* Log a more detailed warning at build time about the previous AndroidX
+  migration.
+
+## 0.5.0
+
+* **Breaking change**. Migrate from the deprecated original Android Support
+  Library to AndroidX. This shouldn't result in any functional changes, but it
+  requires any Android apps using this plugin to [also
+  migrate](https://developer.android.com/jetpack/androidx/migrate) if they're
+  using the original support library.
+
+## 0.4.1
+
+* Updated Gradle tooling to match Android Studio 3.1.2.
+
+## 0.4.0
+
+* **Breaking change**. Set SDK constraints to match the Flutter beta release.
+
 ## 0.3.1
 
 * Simplified and upgraded Android project template to Android SDK 27.

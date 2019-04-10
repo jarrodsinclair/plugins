@@ -16,9 +16,13 @@
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
   if ([call.method isEqualToString:@"getAll"]) {
     result(@{
-      @"packageName" : [[NSBundle mainBundle] bundleIdentifier],
-      @"version" : [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
+      @"appName" : [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"]
+          ?: [NSNull null],
+      @"packageName" : [[NSBundle mainBundle] bundleIdentifier] ?: [NSNull null],
+      @"version" : [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"]
+          ?: [NSNull null],
       @"buildNumber" : [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleVersion"]
+          ?: [NSNull null],
     });
   } else {
     result(FlutterMethodNotImplemented);
